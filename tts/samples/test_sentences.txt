@@ -1,0 +1,41 @@
+# Fixed test sentences for Chapter 6 synthesis evaluation (25 items)
+# Format: one sentence per line; lines starting with # are ignored.
+
+# Short sentences and greetings
+Hallo, wie geht es Ihnen heute Morgen?
+Es zieht hier ein wenig, schließen Sie bitte das Fenster.
+Vielen Dank für Ihre schnelle Rückmeldung.
+
+# Prefix variations (Inseparable vs. Separable, short vs. long prefixes)
+Wir besprechen das Problem morgen ausführlich im Team.
+Der Spezialist empfiehlt, das gesamte System sofort umzustellen.
+Sie missverstehen meine Absicht vollkommen.
+Er entkam dem dichten Verkehr nur durch eine rechtzeitige Umleitung.
+Der Ausschuss überarbeitet derzeit den aktuellen Gesetzesentwurf.
+Ich erkenne die Handschrift auf diesem alten Dokument nicht wieder.
+Bitte hinterlassen Sie Ihre Nachricht nach dem Signalton.
+
+# Long and multi-clause sentences
+Wenn wir heute nicht rechtzeitig am Bahnhof ankommen, verpassen wir den letzten Anschlusszug nach Linz und müssen die Nacht im Hotel verbringen.
+Obwohl das Projekt anfangs viele strukturelle Schwierigkeiten aufwies, konnten die Ingenieure die Software am Ende erfolgreich und pünktlich ausliefern.
+
+# Technical terms, compound words and phoneme traps
+Die fehlerhafte Softwarearchitektur verursachte erhebliche Stabilitätsprobleme auf dem Server.
+Arbeiterunfallversicherungsgesetz und Mindestlohnverordnung wurden gestern im Parlament debattiert.
+Das neuentwickelte Text-to-Speech-System synthetisiert regionale Dialekte bemerkenswert präzise.
+
+# Numbers, dates, and currencies
+Das neue Laborgerät kostet exakt viertausendzweihundertfünfzig Euro und achtzig Cent.
+Die Konferenz findet am einunddreißigsten August um vierzehn Uhr dreißig statt.
+Ungefähr fünfundsiebzig Prozent der Teilnehmer stimmten der vorgeschlagenen Änderung zu.
+
+# Loanwords and anglicisms
+Ich habe das Betriebssystem aktualisiert und die neuen Treiber installiert.
+Das Backup wurde automatisch in der Cloud gespeichert.
+Wir müssen das nächste Meeting unbedingt online koordinieren.
+
+# Standard German control samples (Syntactic equivalents to evaluation hold-outs)
+Ich hätte gerne noch ein Glas Wasser, bitte.
+Die Feuerwehr ist bereits auf dem Weg zum Unfallort.
+Wir haben heute Nachmittag noch eine Versammlung im Gemeindehaus.
+Dieses regionale Projekt ist für unsere Zusammenarbeit wirklich wichtig.

@@ -2,7 +2,7 @@
 
 **Scripts-only** reproduction code for the bachelor thesis *A Data-Driven Pipeline for Alemannic Dialect TTS with a Focus on Vorarlberg*. The pipeline collects Swiss and Vorarlberg dialect speech, builds merged classification datasets, trains dialect classifiers, benchmarks ASR, evaluates Vorarlberg and SRF corpora, and fine-tunes Chatterbox (Kartoffelbox) TTS on Vorarlberg speech.
 
-> This repository contains **no datasets, audio files, model checkpoints, result CSVs/JSON dumps, or the thesis PDF**. All scripts expect corpora and trained weights on disk via environment variables.
+> This repository contains **no training datasets or model checkpoints**. It **does** include **50 demo synthesis WAVs** (25 sentences × base vs fine-tuned) under [`tts/samples/`](tts/samples/) so reviewers can listen without re-running GPU inference. All other scripts expect corpora and trained weights on disk via environment variables.
 
 See also [REPO_OVERVIEW.md](REPO_OVERVIEW.md) for a folder-by-folder map.
 
@@ -13,7 +13,8 @@ See also [REPO_OVERVIEW.md](REPO_OVERVIEW.md) for a folder-by-folder map.
 | Included | Not included |
 |----------|--------------|
 | Python / shell / YAML scripts for every thesis chapter | Merged TSVs, feature caches (~164 GB), `.npy` / `.pt` weights |
-| Chatterbox fine-tuning code under `tts/chatterbox-finetuning/` | TTS checkpoints, synthesis WAVs, TensorBoard logs |
+| Chatterbox fine-tuning code under `tts/src/` + `tts/thesis_eval/` | TTS checkpoints, TensorBoard logs |
+| **Demo synthesis WAVs** (`tts/samples/`, 50 files, ~11 MB) | Full Vorarlberg / Swiss corpora |
 | `thesis_eval/scripts/` (loss curves, val loss, synthesis eval) | `clip_labels.csv` (~3 GB), Label Studio exports |
 | Verification scripts (`scripts/verify_thesis_numbers.py`) | Thesis PDF (`main-thesis.pdf` — author machine only) |
 
@@ -33,7 +34,7 @@ See also [REPO_OVERVIEW.md](REPO_OVERVIEW.md) for a folder-by-folder map.
 For TTS fine-tuning, also install the Chatterbox sub-project:
 
 ```bash
-cd tts/chatterbox-finetuning
+cd tts
 uv sync
 ```
 
@@ -186,12 +187,14 @@ uv run python dialect_classification/train/7_linear_phoneme_binary.py
 
 ### Chapter 6 — Chatterbox fine-tuning & thesis_eval
 
-Code lives in `tts/chatterbox-finetuning/`.
+Code lives in `tts/src/` and `tts/thesis_eval/`.
+
+**Listen first (no GPU):** pre-generated outputs from the 25-sentence benchmark are in [`tts/samples/`](tts/samples/) — compare `kartoffelbox_base/sentence_XX.wav` with `vorarlberg_finetuned_10_epochs/sentence_XX.wav` (see `tts/samples/README.md` for suggested pairs).
 
 **Fine-tuning** (requires Vorarlberg metadata TSV + GPU):
 
 ```bash
-cd tts/chatterbox-finetuning
+cd tts
 uv sync
 # Example — edit metadata path inside script first:
 bash src/run_finetune_local_dataset.sh
@@ -202,7 +205,7 @@ bash src/run_finetune.sh
 **Chapter 6 evaluation tasks** (inference / plotting; checkpoints must exist under `$CHECKPOINTS_DIR`):
 
 ```bash
-cd tts/chatterbox-finetuning
+cd tts
 export CHECKPOINTS_DIR=$MODELS_ROOT/TTS/chatterbox
 
 uv run python thesis_eval/scripts/task1_loss_curves.py    # training loss curves

@@ -25,6 +25,9 @@ uv.lock
 # Runtime artifacts (never commit)
 *.csv
 *.tsv
-*.wav
 *.mp3
 thesis_eval/cache/
+
+# Audio — ignore everywhere except bundled TTS demo samples
+*.wav
+!tts/samples/**/*.wav
