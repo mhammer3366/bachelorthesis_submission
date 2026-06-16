@@ -1,0 +1,28 @@
+python finetune_t3_updated.py \
+  --local_model_dir /home/ai/chatterbox/kartoffelbox_model_v0.1 \
+  --dataset_dir /home/ai/AI-DataPool/Datasets/audio/Vorarlberg/überleaba_podcast/sliced_16000/arrow_dataset_16000_1 \
+  --text_column_name text \
+  --audio_column_name audio \
+  --num_train_epochs 1 \
+  --per_device_train_batch_size 2 \
+  --gradient_accumulation_steps 6 \
+  --eval_split_size 0.01 \
+  --learning_rate 3e-5 \
+  --lr_scheduler_type cosine_with_restarts \
+  --warmup_steps 100 \
+  --logging_steps 10 \
+  --evaluation_strategy steps \
+  --eval_steps 2000 \
+  --save_strategy steps \
+  --save_steps 4000 \
+  --save_total_limit 4 \
+  --fp16 \
+  --dataloader_num_workers 6 \
+  --dataloader_persistent_workers false \
+  --dataloader_pin_memory true \
+  --do_train \
+  --do_eval \
+  --tf32 true \
+  --report_to tensorboard \
+  --output_dir /home/ai/chatterbox/chatterbox-finetuning/checkpoints/chatterbox_finetuned_überleaba \
+  --label_names labels_speech

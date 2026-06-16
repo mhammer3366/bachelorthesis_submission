@@ -1,0 +1,28 @@
+python finetune_t3.py \
+  --local_model_dir /home/ai/chatterbox/kartoffelbox_model \
+  --metadata_file /home/ai/AI-DataPool/Datasets/audio/Schweiz/STT4SG-350/converted_audio_16000_split/updated_train_all_split.tsv \
+  --output_dir /home/ai/chatterbox/chatterbox-finetuning/checkpoints/chatterbox_finetuned_stt_all \
+  --text_column_name sentence \
+  --audio_column_name path \
+  --eval_split_size 0.0002 \
+  --num_train_epochs 1 \
+  --per_device_train_batch_size 4 \
+  --per_device_eval_batch_size 4 \
+  --gradient_accumulation_steps 4 \
+  --learning_rate 3e-5 \
+  --warmup_steps 100 \
+  --logging_steps 10 \
+  --evaluation_strategy steps \
+  --eval_steps 1000 \
+  --save_strategy steps \
+  --save_steps 1000 \
+  --save_total_limit 4 \
+  --bf16 \
+  --dataloader_num_workers 6 \
+  --dataloader_persistent_workers false \
+  --dataloader_pin_memory true \
+  --do_train \
+  --do_eval \
+  --tf32 true \
+  --report_to tensorboard \
+  --label_names labels_speech

@@ -1,0 +1,28 @@
+CUDA_VISIBLE_DEVICES=0,1 python3 finetune_t3.py \
+  --local_model_dir /home/ai/max/chatterbox/chatterbox_multilingual_model \
+  --metadata_file /home/ai/AI-DataPool/Datasets/audio/Vorarlberg/vorarlberger_daten_16000.tsv \
+  --text_column_name text \
+  --audio_column_name path \
+  --num_train_epochs 5 \
+  --per_device_train_batch_size 3 \
+  --gradient_accumulation_steps 4 \
+  --eval_split_size 0.01 \
+  --learning_rate 3e-5 \
+  --lr_scheduler_type cosine_with_restarts \
+  --warmup_steps 100 \
+  --logging_steps 10 \
+  --eval_strategy steps \
+  --eval_steps 2000 \
+  --save_strategy steps \
+  --save_steps 4000 \
+  --save_total_limit 4 \
+  --fp16 \
+  --dataloader_num_workers 6 \
+  --dataloader_persistent_workers false \
+  --dataloader_pin_memory true \
+  --do_train \
+  --do_eval \
+  --tf32 true \
+  --report_to tensorboard \
+  --output_dir /home/ai/chatterbox/chatterbox-finetuning/checkpoints/chatterbox_finetuned_überleaba_5_epochs_multilingual \
+  --label_names labels_speech
