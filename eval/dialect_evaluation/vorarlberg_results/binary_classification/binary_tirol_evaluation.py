@@ -1,36 +1,15 @@
 #!/usr/bin/env python3
 """
-Tirol speaker-level classification using trained binary NB (German vs Dialect)
+Tirol speaker-level binary NB evaluation (German vs Dialect).
 
-Input TSV (hardcoded):
-  /home/ai/AI-DataPool/Datasets/audio/Österreich/sliced_16000_mono/Tirol/master.cleaned_with_phonemes.tsv
-  columns: path, text, phoneme, speaker  [optional: duration]
-
-Model (hardcoded):
-  /home/ai/bachelorthesis_2/models/5_nb_phoneme_binary/{vectorizer.joblib, nb_model.joblib}
-
-Outputs:
-  /home/ai/AI-DataPool/Datasets/audio/Österreich/sliced_16000_mono/Tirol/nb_phoneme_binary/speaker_preds.csv
-  /home/ai/AI-DataPool/Datasets/audio/Österreich/sliced_16000_mono/Tirol/nb_phoneme_binary/chunk_preds.csv
-
-Logic:
-  - Group by speaker (speaker_id)
-  - Concat utterances into ~CHUNK_SECS chunks per speaker (assumes 5s/utt if no duration)
-  - Predict per chunk
-  - Aggregate per speaker using all chunks:
-      * prob_high_german_mean
-      * prob_high_german_median
-      * prob_high_german_max
-  - Final speaker label:
-      * if prob_high_german_median >= 0.4 → dialect
-      * else → high_german
+Input TSV under $DATA_ROOT/audio/Österreich/; model under $THESIS_ROOT/models/.
+Aggregates chunk predictions per speaker (median prob → label). See docs/PATH_AUDIT.md.
 """
 
 import os
 from pathlib import Path
 REPO_ROOT = Path(os.environ.get("THESIS_ROOT", Path(__file__).resolve().parents[4]))
-
-import os
+DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/home/ai/AI-DataPool/Datasets"))
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
@@ -39,13 +18,13 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
 # ============== CONFIG ==============
-INPUT_TSV = "/home/ai/AI-DataPool/Datasets/audio/Österreich/sliced_16000_mono/Tirol/master.cleaned_with_phonemes.tsv"
+INPUT_TSV = str(DATA_ROOT / "audio/Österreich/sliced_16000_mono/Tirol/master.cleaned_with_phonemes.tsv")
 
 MODEL_DIR = str(REPO_ROOT / "models/5_nb_phoneme_binary")
 VEC_PATH  = os.path.join(MODEL_DIR, "vectorizer.joblib")
 NB_PATH   = os.path.join(MODEL_DIR, "nb_model.joblib")
 
-SAVE_DIR  = "/home/ai/AI-DataPool/Datasets/audio/Österreich/sliced_16000_mono/Tirol/nb_phoneme_binary_60secs"
+SAVE_DIR  = str(DATA_ROOT / "audio/Österreich/sliced_16000_mono/Tirol/nb_phoneme_binary_60secs")
 
 # Concat settings
 CHUNK_SECS = 60.0       # 0 = disable (single mega-doc per speaker)

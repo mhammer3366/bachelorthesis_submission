@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
 """
-Vorarlberg speaker-level classification using trained binary NB (German vs Dialect)
+Wien speaker-level binary NB evaluation (German vs Dialect).
 
-Input TSV (hardcoded):
-  /home/ai/bachelorthesis_2/data_preperation/feature_extraction/vorarlberg/vorarlberg_with_phonemes_with_client.tsv
-  columns: path, text, phoneme, client_id  [optional: duration]
-
-Model (hardcoded):
-  /home/ai/bachelorthesis_2/models/nb_phoneme_binary/{vectorizer.joblib, nb_model.joblib}
-
-Outputs:
-  /home/ai/bachelorthesis_2/inference/vorarlberg_nb_binary/speaker_preds.csv
-  /home/ai/bachelorthesis_2/inference/vorarlberg_nb_binary/chunk_preds.csv
-
-Logic:
-  - Group by client_id
-  - Concat utterances into ~CHUNK_SECS chunks per speaker (assumes 5s/utt if no duration)
-  - Predict per chunk -> aggregate per speaker (mean prob_german)
-  - Final speaker label: prob_german_mean >= 0.5 → High German; else Dialect
+Paths resolve from THESIS_ROOT / DATA_ROOT; see docs/PATH_AUDIT.md.
 """
 
 import os

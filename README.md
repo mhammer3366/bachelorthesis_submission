@@ -1,175 +1,262 @@
 # Vorarlberg Dialect TTS — Bachelor Thesis Code Appendix
 
-**Scripts-only** reproduction code for the bachelor thesis *A Data-Driven Pipeline for Alemannic Dialect TTS with a Focus on Vorarlberg*.
+**Scripts-only** reproduction code for the bachelor thesis *A Data-Driven Pipeline for Alemannic Dialect TTS with a Focus on Vorarlberg*. The pipeline collects Swiss and Vorarlberg dialect speech, builds merged classification datasets, trains dialect classifiers, benchmarks ASR, evaluates Vorarlberg and SRF corpora, and fine-tunes Chatterbox (Kartoffelbox) TTS on Vorarlberg speech.
 
-> This repository contains **no datasets, audio, checkpoints, result CSVs/JSON, or the thesis PDF**. All scripts expect data on disk via `DATA_ROOT` and generated artifacts via `THESIS_ROOT`.
+> This repository contains **no datasets, audio files, model checkpoints, result CSVs/JSON dumps, or the thesis PDF**. All scripts expect corpora and trained weights on disk via environment variables.
 
-## Thesis document
+See also [REPO_OVERVIEW.md](REPO_OVERVIEW.md) for a folder-by-folder map.
 
-The full thesis PDF is kept locally (not in git): `main-thesis.pdf` (author machine only).
+---
 
-Public code appendix: [docs/APPENDIX_LINK.md](docs/APPENDIX_LINK.md) → https://github.com/mhammer3366/bachelorthesis_submission
+## What this repo contains
+
+| Included | Not included |
+|----------|--------------|
+| Python / shell / YAML scripts for every thesis chapter | Merged TSVs, feature caches (~164 GB), `.npy` / `.pt` weights |
+| Chatterbox fine-tuning code under `tts/chatterbox-finetuning/` | TTS checkpoints, synthesis WAVs, TensorBoard logs |
+| `thesis_eval/scripts/` (loss curves, val loss, synthesis eval) | `clip_labels.csv` (~3 GB), Label Studio exports |
+| Verification scripts (`scripts/verify_thesis_numbers.py`) | Thesis PDF (`main-thesis.pdf` — author machine only) |
+
+---
 
 ## Prerequisites
 
-- **Python 3.11+** (3.10+ may work)
-- **[uv](https://github.com/astral-sh/uv)** package manager
-- **ffmpeg** (audio resampling / probing)
-- **CUDA** optional but recommended (classification, ASR, TTS)
-- **Playwright** for SRF scrapers: `uv sync && uv run playwright install chromium`
-- **Hugging Face account** + `HF_TOKEN` for pyannote diarization (gated models)
+| Requirement | Notes |
+|-------------|-------|
+| **Python 3.11+** | 3.10 may work; tested with 3.11 |
+| **[uv](https://github.com/astral-sh/uv)** | Dependency management (`uv sync`) |
+| **ffmpeg / ffprobe** | Audio probing, resampling, MP3→WAV |
+| **CUDA** (optional) | Classification training, ASR, TTS fine-tuning |
+| **HuggingFace token** | Required for pyannote diarization (`HF_TOKEN` env var) |
+| **Playwright** | Only if running SRF scrapers: `uv run playwright install chromium` |
 
-## Setup
+For TTS fine-tuning, also install the Chatterbox sub-project:
 
 ```bash
-git clone https://github.com/mhammer3366/bachelorthesis_submission.git
+cd tts/chatterbox-finetuning
+uv sync
+```
+
+---
+
+## Environment setup
+
+Clone the repo and install dependencies:
+
+```bash
+git clone <repo-url> bachelorthesis_submission
 cd bachelorthesis_submission
 uv sync
 ```
 
-## Environment variables
-
-Set these before running pipeline steps (also see [docs/PATH_AUDIT.md](docs/PATH_AUDIT.md)):
+Set path variables before running any pipeline step:
 
 ```bash
-export THESIS_ROOT="$(pwd)"   # default in scripts: repo root
-export DATA_ROOT=/path/to/AI-DataPool/Datasets
-export MODELS_ROOT=/path/to/AI-DataPool/Models          # optional
-export CLASSIFIER_MODELS_DIR=$THESIS_ROOT/models        # Ch. 6 NB classifier
-export HF_TOKEN=hf_...                                  # pyannote only
-export MERGED_DATA_DIR=$THESIS_ROOT/data_preparation/merged_datasets
-export MERGED_DE_DATA_DIR=$THESIS_ROOT/data_preparation/merged_datasets_plus_de
+export THESIS_ROOT="$(pwd)"                    # repo root (default when unset)
+export DATA_ROOT=/path/to/your/datasets          # audio + source TSVs
+export MODELS_ROOT=/path/to/your/models          # checkpoints (optional)
+export CHECKPOINTS_DIR=$MODELS_ROOT/TTS/chatterbox   # Chatterbox fine-tunes
+export CHATTERBOX_ROOT=$THESIS_ROOT/tts/chatterbox-finetuning
+export HF_TOKEN=hf_...                           # pyannote + gated HF models
 ```
 
-| Variable | When needed |
-|----------|-------------|
-| `THESIS_ROOT` | Merged TSVs, saved features, `models/`, `eval/` outputs (defaults to repository root) |
-| `DATA_ROOT` | All on-disk audio corpora; Swiss pyannote pipeline I/O |
-| `MODELS_ROOT` | TTS / Chatterbox checkpoints (not in git) |
-| `HF_TOKEN` | `asr/pyannote_pipeline/pyannote_swiss.py` |
-| `CLASSIFIER_MODELS_DIR` | `tts/thesis_eval/scripts/task3_synth_eval.py` |
+Derived paths (override if needed):
 
-## Step-by-step reproduction
+```bash
+export MERGED_DATA_DIR=$THESIS_ROOT/data_preparation/merged_datasets
+export MERGED_DE_DATA_DIR=$THESIS_ROOT/data_preparation/merged_datasets_plus_de
+export CLASSIFIER_MODELS_DIR=$THESIS_ROOT/models
+```
 
-### Chapter 3 — Data collection & preparation
+**How paths work:** Most scripts default `THESIS_ROOT` to the repository root via `Path(__file__).resolve().parents[N]`. Dataset locations default to `$DATA_ROOT/...` but fall back to the author's layout (`/home/ai/AI-DataPool/Datasets`) if unset — **always set `DATA_ROOT` on a fresh machine**. See [docs/PATH_AUDIT.md](docs/PATH_AUDIT.md) for per-script details.
 
-1. **SRF metadata (optional self-collected Swiss audio)**  
-   Configure API access, then:
+---
+
+## Step-by-step reproduction by chapter
+
+### Chapter 3 — Data collection
+
+**Swiss SRF podcast metadata**
+
+1. Obtain SRF API credentials and store the access token:
    ```bash
-   uv run python data_collection/get_access_token.py   # local credentials
-   uv run python data_collection/srf_webscraper.py
-   uv run python data_collection/srf_webscraper_2.py
+   uv run python data_collection/get_access_token.py
    ```
-2. **Convert downloads** (if needed): `uv run python data_collection/mp3_to_wav.py`
-3. **Merge SDS-200 + STT4SG-350 (+ optional CV DE)** into train/valid/test TSVs:
+2. Scrape podcast metadata and download URLs:
+   ```bash
+   uv run python data_collection/srf_webscraper_2.py   # or srf_webscraper.py
+   ```
+3. Convert downloaded MP3s to WAV (after placing files under `$DATA_ROOT`):
+   ```bash
+   uv run python data_collection/mp3_to_wav.py
+   ```
+
+**Vorarlberg dialect audio**
+
+- Curate podcast/audio folders under `$DATA_ROOT/audio/Vorarlberg/<show>/original/`.
+- Print per-show episode counts and hours:
+  ```bash
+  uv run python data_preparation/merged_datasets/vorarlberg_distribution_print.py
+  ```
+- Build Vorarlberg phoneme TSV (requires eSpeak phoneme model):
+  ```bash
+  uv run python dialect_classification/feature_extraction/phoneme_vorarlberg.py
+  uv run python dialect_classification/feature_extraction/vorarlberg/add_speaker_and_duration.py
+  ```
+
+### Chapter 3 — Data preparation (Swiss merge)
+
+1. Merge SDS-200 + STT4SG-350 (+ optional Common Voice DE) into train/valid/test TSVs:
    ```bash
    uv run python data_preparation/merged_datasets/merge_datasets.py
-   uv run python data_preparation/merged_datasets/merge_german.py   # + Common Voice DE
+   uv run python data_preparation/merged_datasets/merge_german.py   # adds German rows
    ```
-4. **Distribution checks**:
+2. Fix audio paths after moving corpora:
    ```bash
-   uv run python data_preparation/merged_datasets/vorarlberg_distribution_print.py
-   uv run python data_preparation/merged_datasets/self_collected_srf_distribution_print.py
+   uv run python data_preparation/merged_datasets/update_path.py
    ```
-5. **Verify thesis tables** (requires merged TSVs + `DATA_ROOT` audio):
+3. Distribution statistics for thesis tables:
    ```bash
-   uv run python scripts/verify_thesis_numbers.py
+   uv run python data_preparation/merged_datasets/distribution_prints.py
+   uv run python data_preparation/merged_datasets/enhanced_distribution_analysis_for_presentation.py
    ```
 
-### Chapter 4 — Dialect classification
+Outputs land in `$THESIS_ROOT/data_preparation/merged_datasets/` and `merged_datasets_plus_de/` (created on first run).
 
-1. **Features** (long-running; writes under `$THESIS_ROOT/data_preparation/feature_extraction/`):
-   ```bash
-   uv run python dialect_classification/feature_extraction/1_mel_spectogram.py
-   uv run python dialect_classification/feature_extraction/2_phoneme.py
-   uv run python dialect_classification/feature_extraction/3_wav2vec_base_layer6.py
-   uv run python dialect_classification/feature_extraction/4_xlsr_300m_layer8.py
-   uv run python dialect_classification/feature_extraction/phoneme_vorarlberg.py
-   ```
-2. **Train classifiers** (`dialect_classification/train/1_mel_cnn.py` … `7_linear_phoneme_binary.py`):
-   ```bash
-   uv run python dialect_classification/train/3_linear_phoneme.py
-   uv run python dialect_classification/train/6_nb_phoneme_binary.py
-   ```
-3. **Figures / verification**:
-   ```bash
-   uv run python scripts/plot_neighbor_confusion.py
-   uv run python scripts/speaker_cm.py
-   uv run python scripts/comparison_prints_of_all_models.py
-   ```
+### Chapter 4 — Feature extraction & classifiers
 
-### Chapter 5 — ASR benchmark & evaluation
+**Feature extraction** (run after merged TSVs exist):
 
-1. **Resample Swiss podcasts** (paths under `$DATA_ROOT/audio/Schweiz/`):
+```bash
+uv run python dialect_classification/feature_extraction/1_mel_spectogram.py
+uv run python dialect_classification/feature_extraction/2_phoneme.py
+uv run python dialect_classification/feature_extraction/3_wav2vec_base_layer6.py
+uv run python dialect_classification/feature_extraction/4_xlsr_300m_layer8.py
+```
+
+**Training** (7-way Swiss + binary German/dialect):
+
+```bash
+uv run python dialect_classification/train/1_mel_cnn.py
+uv run python dialect_classification/train/2_nb_phoneme.py
+uv run python dialect_classification/train/3_linear_phoneme.py
+uv run python dialect_classification/train/4_wav2vec_base_layer6.py
+uv run python dialect_classification/train/5_xlsr_300m_layer8.py
+uv run python dialect_classification/train/6_nb_phoneme_binary.py
+uv run python dialect_classification/train/7_linear_phoneme_binary.py
+```
+
+**Evaluation**
+
+- Vorarlberg dialect (7-way phoneme NB):
+  ```bash
+  uv run python eval/dialect_evaluation/vorarlberg_dialect_test.py
+  ```
+- Vorarlberg / Tirol / Wien binary evaluation:
+  ```bash
+  uv run python eval/dialect_evaluation/vorarlberg_results/binary_classification/binary_vorarlberg_evaluation.py
+  ```
+- Swiss SRF two-stage labeling (binary → 7-way):
+  ```bash
+  uv run python eval/swiss_dialect/two_stage_swiss_srf_espeak_classification.py
+  ```
+- Neighbor-confusion figures:
+  ```bash
+  uv run python scripts/plot_neighbor_confusion.py
+  uv run python scripts/speaker_cm.py
+  ```
+
+### Chapter 5 — ASR benchmark & pyannote pipeline
+
+1. Resample Swiss podcasts to 16 kHz mono:
    ```bash
    uv run python asr/pyannote_pipeline/resample_swiss.py
    ```
-2. **Diarization + transcription** (set `HF_TOKEN`):
+2. Diarization + faster-whisper transcription (set `HF_TOKEN` first):
    ```bash
-   export HF_TOKEN=hf_...
    uv run python asr/pyannote_pipeline/pyannote_swiss.py
-   uv run python asr/pyannote_pipeline/pynnote_postprocessing.py
+   # or orchestrated:
    uv run python asr/pyannote_pipeline/run_audio_processing.py
    ```
-3. **Whisper benchmarks**:
+3. ASR model comparison on merged test set:
    ```bash
-   uv run python asr/models/bench_differend_asr_models.py
    uv run python asr/models/bench_whisper_turbo.py
+   uv run python asr/models/bench_differend_asr_models.py
    ```
-4. **Swiss SRF two-stage labeling**:
-   ```bash
-   uv run python eval/swiss_dialect/two_stage_swiss_srf_espeak_classification.py
-   ```
-5. **Vorarlberg binary / neighbor eval** — scripts under `eval/dialect_evaluation/`.
 
-Manual listening labels: see `labeling/README.md` (artifacts not in git).
+### Chapter 6 — Chatterbox fine-tuning & thesis_eval
 
-### Chapter 6 — TTS (Chatterbox / Kartoffelbox fine-tuning)
+Code lives in `tts/chatterbox-finetuning/`.
 
-In-repo copy of the fine-tuning fork (scripts only):
+**Fine-tuning** (requires Vorarlberg metadata TSV + GPU):
 
+```bash
+cd tts/chatterbox-finetuning
+uv sync
+# Example — edit metadata path inside script first:
+bash src/run_finetune_local_dataset.sh
+# or:
+bash src/run_finetune.sh
 ```
-tts/
-├── src/                    # Chatterbox package + run_finetune*.sh + finetune_config.yaml
-└── thesis_eval/scripts/    # task1–task4 + task3 synthesis benchmark
+
+**Chapter 6 evaluation tasks** (inference / plotting; checkpoints must exist under `$CHECKPOINTS_DIR`):
+
+```bash
+cd tts/chatterbox-finetuning
+export CHECKPOINTS_DIR=$MODELS_ROOT/TTS/chatterbox
+
+uv run python thesis_eval/scripts/task1_loss_curves.py    # training loss curves
+uv run python thesis_eval/scripts/task2_val_loss.py       # recovered validation loss
+uv run python thesis_eval/scripts/task3_synth_eval.py     # 25-sentence synthesis benchmark
+uv run python thesis_eval/scripts/task4_dataset_size.py   # dataset size reconciliation
 ```
 
-1. **Install TTS deps** (CUDA torch as on your machine; see `tts/src/pyproject.toml` if present or author env).
-2. **Prepare Vorarlberg metadata TSV** on disk: `$DATA_ROOT/audio/Vorarlberg/vorarlberger_daten_16000.tsv` (and binary-filtered variant for some runs).
-3. **Fine-tune** (edit shell script paths for `DATA_ROOT` / `MODELS_ROOT`):
-   ```bash
-   cd tts/src
-   bash run_finetune_local_dataset.sh    # example entry; see run_finetune*.sh
-   ```
-4. **Point checkpoints**:
-   ```bash
-   export MODELS_ROOT=/path/to/AI-DataPool/Models
-   # expect: $MODELS_ROOT/TTS/chatterbox/vorarlberg_finetuned_10_epochs/
-   ```
-5. **Chapter 6 evaluation** (inference-only; writes under `tts/thesis_eval/` at runtime):
-   ```bash
-   uv run python tts/thesis_eval/scripts/task1_loss_curves.py
-   uv run python tts/thesis_eval/scripts/task2_val_loss.py
-   uv run python tts/thesis_eval/scripts/task3_synth_eval.py
-   uv run python tts/thesis_eval/scripts/task4_dataset_size.py
-   ```
-   See `tts/thesis_eval/REPORT.md` and [docs/VERIFICATION_SUMMARY.md](docs/VERIFICATION_SUMMARY.md).
+Key thesis numbers (10-epoch Vorarlberg run): train_loss **0.936**, ~52 h wall-clock, recovered val loss **3.393**, synthesis WER 0.550 → **0.287**.
 
-## Repository map
+---
 
-| Thesis chapter | Folder |
-|----------------|--------|
-| Ch. 3 — Data collection | `data_collection/` |
-| Ch. 3 — Merging & stats | `data_preparation/` |
-| Ch. 4 — Classification | `dialect_classification/` |
-| Ch. 5 — ASR & pyannote | `asr/` |
-| Ch. 4–5 — Evaluation | `eval/` |
-| Ch. 5 — Manual labeling | `labeling/` |
-| Ch. 6 — TTS | `tts/` |
-| Cross-cutting | `scripts/`, `docs/` |
+## Verification
 
-Details: [REPO_OVERVIEW.md](REPO_OVERVIEW.md). Supervisor checklist: [docs/SUPERVISOR_CHECKLIST.md](docs/SUPERVISOR_CHECKLIST.md).
+Recompute thesis tables from local data (requires merged TSVs + datasets on disk):
+
+```bash
+uv run python scripts/verify_thesis_numbers.py
+uv run python scripts/run_extra_verify.py
+uv run python scripts/comparison_prints_of_all_models.py
+```
+
+---
+
+## External data required
+
+Not shipped with this appendix. Obtain separately:
+
+| Corpus | Typical path under `$DATA_ROOT` |
+|--------|----------------------------------|
+| SDS-200 | `audio/Schweiz/SDS-200/` |
+| STT4SG-350 | `audio/Schweiz/STT4SG-350/` |
+| Common Voice DE (optional) | `audio/Deutschland/cv22-de/` |
+| Self-collected SRF audio | `audio/Schweiz/srf_audio_downloads/` or `16000_mono_wav/` |
+| Vorarlberg podcasts | `audio/Vorarlberg/` |
+| Austria eval (Tirol/Wien) | `audio/Österreich/sliced_16000_mono/` |
+| Chatterbox base + fine-tuned checkpoints | `$MODELS_ROOT/TTS/chatterbox/` |
+| Reference voice clip (TTS eval) | `tts/chatterbox-finetuning/voice_samples/daniel_ganahl_unfall_montafonerisch.wav` (not in git) |
+
+---
+
+## Path requirements
+
+Full per-script audit: [docs/PATH_AUDIT.md](docs/PATH_AUDIT.md).
+
+**Supervisor checklist after clone:**
+
+1. Set `DATA_ROOT`, `MODELS_ROOT`, `HF_TOKEN`.
+2. Run pipeline steps in chapter order; each step creates output dirs under `$THESIS_ROOT`.
+3. Scripts with hardcoded `$DATA_ROOT/...` defaults work once `DATA_ROOT` is exported.
+4. TTS eval tasks need checkpoints at `$CHECKPOINTS_DIR/<run_name>/`.
+
+---
 
 ## License
 
-Released under the **MIT License** — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

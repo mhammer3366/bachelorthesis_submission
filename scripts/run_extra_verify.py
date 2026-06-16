@@ -109,14 +109,14 @@ for run in [
     results[f"26_{run}"] = entry
 
 # Item 25 ref wav
-ref = Path("/home/ai/miraTTS/mira-tts/daniel_ganahl_unfall_montafonerisch.wav")
+ref = Path(os.environ.get("REF_VOICE_WAV", str(BASE / "tts/chatterbox-finetuning/voice_samples/daniel_ganahl_unfall_montafonerisch.wav")))
 results["25_ref_wav"] = {"exists": ref.exists(), "path": str(ref), "size_bytes": ref.stat().st_size if ref.exists() else None}
 
 # Item 28 workflow
 results["28_workflow_png"] = list(BASE.rglob("workflow_pipeline.png"))
 
 # Item 5 podcast mentions in Vorarlberg json (limited search)
-vbg = Path("/home/ai/AI-DataPool/Datasets/audio/Vorarlberg")
+vbg = DATA_ROOT / "audio/Vorarlberg"
 mentions = {}
 for pattern in ["podcast.de", "Podimo", "LetsCast", "Kristbergbahn", "Lauterach", "Fröweis", "Fr\u00f6weis"]:
     count = 0
@@ -132,11 +132,11 @@ for pattern in ["podcast.de", "Podimo", "LetsCast", "Kristbergbahn", "Lauterach"
     mentions[pattern] = {"files_matched_in_sample": count, "sample": sample}
 results["5_vbg_mentions"] = mentions
 
-# Item 1 full SDS cantons from source
+SDS_SPLITS = DATA_ROOT / "audio/Schweiz/SDS-200/SDS-200-Corpus/splits"
 full_cantons = Counter()
 for split in ["train", "valid", "test"]:
     sds = pd.read_csv(
-        f"/home/ai/AI-DataPool/Datasets/audio/Schweiz/SDS-200/SDS-200-Corpus/splits/{split}.tsv",
+        SDS_SPLITS / f"{split}.tsv",
         sep="\t", dtype=str, keep_default_na=False,
     )
     full_cantons.update(sds["canton"].str.upper().str.strip())
